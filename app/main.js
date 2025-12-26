@@ -5,8 +5,16 @@ const rl = readline.createInterface({
     output: process.stdout,
 });
 
-// TODO: Uncomment the code below to pass the first stage
-rl.question("$ ", (command) => {
-    console.log(`${command}: command not found`);
+(async () => {
+    for (let i = 0; ; ) await newFunction();
     rl.close();
-});
+})();
+
+async function newFunction() {
+    return new Promise((resolve) => {
+        rl.question("$ ", async (command) => {
+            console.log(`${command}: command not found`);
+            resolve(command);
+        });
+    });
+}
