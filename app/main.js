@@ -6,13 +6,15 @@ const rl = readline.createInterface({
 });
 
 (async () => {
-    for (let i = 0; ; ) await newFunction();
+    for (let i = 0; ; i++) {
+        await prompt(i);
+    }
     rl.close();
 })();
 
-async function newFunction() {
+async function prompt() {
     return new Promise((resolve) => {
-        rl.question("$ ", async (command) => {
+        rl.question("$ ", (command) => {
             console.log(`${command}: command not found`);
             resolve(command);
         });
