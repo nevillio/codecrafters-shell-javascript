@@ -1,4 +1,4 @@
-const readline = require("readline");
+const readline = require('readline');
 
 const rl = readline.createInterface({
     input: process.stdin,
@@ -11,7 +11,7 @@ const typePattern = /^type\s+(?<text>.*)$/i;
 (async () => {
     for (let i = 0; ; i++) {
         const command = await prompt(i);
-        if (command === "exit") {
+        if (command === 'exit') {
             break;
         }
     }
@@ -20,33 +20,25 @@ const typePattern = /^type\s+(?<text>.*)$/i;
 
 async function prompt() {
     return new Promise((resolve, reject) => {
-        rl.question("$ ", (command) => {
+        rl.question('$ ', (command) => {
             command = command.trim();
             if (!command) resolve();
             switch (true) {
-                case command === "exit": {
-                    resolve("exit");
+                case command === 'exit': {
+                    resolve('exit');
                     break;
                 }
                 case command.match(echoPattern) !== null: {
                     const { text } = command.match(echoPattern).groups;
-                    console.log(text || "");
+                    console.log(text || '');
                     resolve();
                     break;
                 }
                 case command.match(typePattern) !== null: {
                     const { text } = command.match(typePattern).groups;
-                    switch (text) {
-                        case "echo":
-                        case "exit":
-                        case "type": {
-                            console.log(`${text} is a shell builtin`);
-                            break;
-                        }
-                        default: {
-                            console.log(`${text}: not found`);
-                        }
-                    }
+                    const builtins = ['echo', 'exit', 'type'];
+                    const isBuiltin = builtins.some((builtin) => builtin === text);
+                    console.log(isBuiltin ? `${text} is a shell builtin` : `${text}: not found`);
                     resolve();
                     break;
                 }
