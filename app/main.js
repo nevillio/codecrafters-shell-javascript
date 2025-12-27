@@ -6,6 +6,7 @@ const rl = readline.createInterface({
 });
 
 const echoPattern = /^echo\s+(?<text>.*)$/i;
+const typePattern = /^type\s+(?<text>.*)$/i;
 
 (async () => {
     for (let i = 0; ; i++) {
@@ -28,8 +29,24 @@ async function prompt() {
                     break;
                 }
                 case command.match(echoPattern) !== null: {
-                    const { groups } = command.match(echoPattern);
-                    console.log(groups.text || "");
+                    const { text } = command.match(echoPattern).groups;
+                    console.log(text || "");
+                    resolve();
+                    break;
+                }
+                case command.match(typePattern) !== null: {
+                    const { text } = command.match(typePattern).groups;
+                    switch (text) {
+                        case "echo":
+                        case "exit":
+                        case "type": {
+                            console.log(`${text} is a shell builtin`);
+                            break;
+                        }
+                        default: {
+                            console.log(`${text}: not found`);
+                        }
+                    }
                     resolve();
                     break;
                 }
