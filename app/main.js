@@ -5,7 +5,7 @@ const rl = readline.createInterface({
     output: process.stdout,
 });
 
-const echoPattern = /^\s*echo\s+(?<text>.*)$/i;
+const echoPattern = /^echo\s+(?<text>.*)$/i;
 
 (async () => {
     for (let i = 0; ; i++) {
@@ -20,15 +20,23 @@ const echoPattern = /^\s*echo\s+(?<text>.*)$/i;
 async function prompt() {
     return new Promise((resolve, reject) => {
         rl.question("$ ", (command) => {
-            if (command.trim() === "exit") {
-                resolve("exit");
-            } else if (command.match(echoPattern)) {
-                const { groups } = command.match(echoPattern);
-                console.log(groups.text || "");
-                resolve();
-            } else {
-                console.log(`${command}: command not found`);
-                resolve();
+            command = command.trim();
+            if (!command) resolve();
+            switch (true) {
+                case command === "exit": {
+                    resolve("exit");
+                    break;
+                }
+                case command.match(echoPattern) !== null: {
+                    const { groups } = command.match(echoPattern);
+                    console.log(groups.text || "");
+                    resolve();
+                    break;
+                }
+                default: {
+                    console.log(`${command}: command not found`);
+                    resolve();
+                }
             }
         });
     });
