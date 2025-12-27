@@ -7,9 +7,8 @@ const rl = readline.createInterface({
 
 (async () => {
     for (let i = 0; ; i++) {
-        try {
-            await prompt(i);
-        } catch (e) {
+        const command = await prompt(i);
+        if (command === "exit") {
             break;
         }
     }
@@ -20,7 +19,7 @@ async function prompt() {
     return new Promise((resolve, reject) => {
         rl.question("$ ", (command) => {
             if (command.trim() === "exit") {
-                reject();
+                resolve("exit");
             } else {
                 console.log(`${command}: command not found`);
                 resolve();
