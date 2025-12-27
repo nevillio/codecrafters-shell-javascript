@@ -5,6 +5,8 @@ const rl = readline.createInterface({
     output: process.stdout,
 });
 
+const echoPattern = /^\s*echo\s+(?<text>.*)$/i;
+
 (async () => {
     for (let i = 0; ; i++) {
         const command = await prompt(i);
@@ -20,6 +22,10 @@ async function prompt() {
         rl.question("$ ", (command) => {
             if (command.trim() === "exit") {
                 resolve("exit");
+            } else if (command.match(echoPattern)) {
+                const { groups } = command.match(echoPattern);
+                console.log(groups.text || "");
+                resolve();
             } else {
                 console.log(`${command}: command not found`);
                 resolve();
