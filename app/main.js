@@ -7,16 +7,24 @@ const rl = readline.createInterface({
 
 (async () => {
     for (let i = 0; ; i++) {
-        await prompt(i);
+        try {
+            await prompt(i);
+        } catch (e) {
+            break;
+        }
     }
     rl.close();
 })();
 
 async function prompt() {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         rl.question("$ ", (command) => {
-            console.log(`${command}: command not found`);
-            resolve(command);
+            if (command.trim() === "exit") {
+                reject();
+            } else {
+                console.log(`${command}: command not found`);
+                resolve();
+            }
         });
     });
 }
