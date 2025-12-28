@@ -2,6 +2,7 @@ const readline = require('readline');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { spawn, spawnSync } = require('child_process');
 
 const rl = readline.createInterface({
     input: process.stdin,
@@ -10,6 +11,7 @@ const rl = readline.createInterface({
 
 const echoPattern = /^echo\s+(?<text>.*)$/i;
 const typePattern = /^type\s+(?<text>.*)$/i;
+const pattern = /^(?<command>\S+)(?:\s+(?<args>.*))?$/;
 
 (async () => {
     for (let i = 0; ; i++) {
@@ -42,42 +44,82 @@ async function isValidDirectory(path) {
 
 async function prompt() {
     return new Promise((resolve, reject) => {
-        rl.question('$ ', async (command) => {
-            command = command.trim();
-            if (!command) resolve();
+        rl.question('$ ', async (answer) => {
+            answer = answer.trim();
+            if (!answer) {
+                resolve();
+            }
+            const { command, args = '' } = answer.match(pattern).groups;
+            const paths = process.env.PATH || [];
             switch (true) {
                 case command === 'exit': {
                     resolve('exit');
                     break;
                 }
-                case command.match(echoPattern) !== null: {
-                    const { text } = command.match(echoPattern).groups;
-                    console.log(text || '');
+                case command === 'echo': {
+                    console.log(args || '');
                     resolve();
                     break;
                 }
-                case command.match(typePattern) !== null: {
-                    const { text } = command.match(typePattern).groups;
+                case command === 'type': {
                     const builtins = ['echo', 'exit', 'type'];
-                    const isBuiltin = builtins.some((builtin) => builtin === text);
-                    if (isBuiltin) {
-                        console.log(`${text} is a shell builtin`);
-                    } else {
-                        const paths = process.env.PATH || [];
-                        const access = await getIsFileAccessible(paths, text);
-                        console.log(access ? `${text} is ${access}` : `${text}: not found`);
+                    for (const arg of args.split(' ')) {
+                        const isBuiltin = builtins.some((builtin) => builtin === arg);
+                        if (isBuiltin) {
+                            console.log(`${arg} is a shell builtin`);
+                        } else {
+                            const access = await getIsFileAccessible(paths, arg);
+                            console.log(access ? `${arg} is ${access}` : `${arg}: not found`);
+                        }
                     }
                     resolve();
                     break;
                 }
                 default: {
-                    console.log(`${command}: command not found`);
+                    if (
+                        spawnSync(`${command}`, (args && args.split(/\s+/)) || [], {
+                            encoding: 'utf-8',
+                            stdio: 'inherit',
+                        }).status !== 0
+                    )
+                        console.log(`${command}: command not found`);
                     resolve();
                 }
             }
         });
     });
 }
+
+async function spawnProcess(command, args) {
+    const argsArray = (args.length && args.split(/\s+/)) || [];
+    return new Promise((resolve, reject) => {
+        const child = spawn(command, argsArray);
+        child.stdin.end();
+        let stdout = '';
+        let stderr = '';
+
+        child.stdout.on('data', (data) => {
+            stdout += data.toString();
+        });
+
+        child.stderr.on('data', (data) => {
+            stderr += data.toString();
+        });
+
+        child.on('close', (code) => {
+            if (code === 0) {
+                resolve(stdout); // Resolve with stdout only
+            } else {
+                reject(new Error(`Process exited with code ${code}: ${stderr.trim()}`));
+            }
+        });
+
+        child.on('error', (err) => {
+            reject(new Error(`Failed to start child process: ${err.message}`));
+        });
+    });
+}
+
 /**
  * Check if file is accessible and log success output
  * @param {array} paths - array of path directories
