@@ -54,7 +54,7 @@ async function prompt() {
                     break;
                 }
                 case 'type': {
-                    const builtins = ['echo', 'exit', 'type', 'pwd'];
+                    const builtins = ['echo', 'exit', 'type', 'pwd', 'cd'];
                     for (const arg of command.slice(1)) {
                         const isBuiltin = builtins.some((builtin) => builtin === arg);
                         if (isBuiltin) {
@@ -69,6 +69,17 @@ async function prompt() {
                 }
                 case 'pwd': {
                     console.log(process.cwd());
+                    resolve();
+                    break;
+                }
+                case 'cd': {
+                    const cd = command[0];
+                    const newDirectory = expandTilde(command[1]);
+                    if (command.length > 2) {
+                        console.log(`${cd}: too many arguments`);
+                    } else if (newDirectory && !(await isValidDirectory(newDirectory))) {
+                        console.log(`${cd}: ${newDirectory}: No such file or directory`);
+                    } else process.chdir(newDirectory || os.homedir());
                     resolve();
                     break;
                 }
@@ -126,7 +137,7 @@ async function spawnProcess(command, args) {
 async function getIsFileAccessible(paths, text) {
     for (const dir of paths.split(path.delimiter)) {
         if (await isValidDirectory(dir)) {
-            const filePath = expandTilde(dir, text);
+            const filePath = expandTilde(dir) + `/${text}`;
             const access = await checkFileAccess(filePath);
             if (access) {
                 return filePath;
@@ -136,10 +147,10 @@ async function getIsFileAccessible(paths, text) {
     return false;
 }
 
-function expandTilde(dir, text) {
-    let filePath = `${dir}/${text}`;
-    if (filePath.startsWith('~')) {
-        return path.join(os.homedir(), filePath.slice(1));
+function expandTilde(dir) {
+    if (!dir) return '';
+    if (dir.startsWith('~')) {
+        return path.join(os.homedir(), dir.slice(1));
     }
-    return filePath;
+    return dir;
 }
