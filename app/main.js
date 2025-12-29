@@ -43,18 +43,18 @@ async function prompt() {
             }
             const command = answer.split(/\s+/);
             const paths = process.env.PATH || [];
-            switch (true) {
-                case command[0] === 'exit': {
+            switch (command[0]) {
+                case 'exit': {
                     rl.close();
                     break;
                 }
-                case command[0] === 'echo': {
+                case 'echo': {
                     console.log(command.slice(1).join(' '));
                     resolve();
                     break;
                 }
-                case command[0] === 'type': {
-                    const builtins = ['echo', 'exit', 'type'];
+                case 'type': {
+                    const builtins = ['echo', 'exit', 'type', 'pwd'];
                     for (const arg of command.slice(1)) {
                         const isBuiltin = builtins.some((builtin) => builtin === arg);
                         if (isBuiltin) {
@@ -64,6 +64,11 @@ async function prompt() {
                             console.log(access ? `${arg} is ${access}` : `${arg}: not found`);
                         }
                     }
+                    resolve();
+                    break;
+                }
+                case 'pwd': {
+                    console.log(process.cwd());
                     resolve();
                     break;
                 }
@@ -130,6 +135,7 @@ async function getIsFileAccessible(paths, text) {
     }
     return false;
 }
+
 function expandTilde(dir, text) {
     let filePath = `${dir}/${text}`;
     if (filePath.startsWith('~')) {
