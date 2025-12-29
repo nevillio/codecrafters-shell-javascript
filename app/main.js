@@ -9,18 +9,10 @@ const rl = readline.createInterface({
     output: process.stdout,
 });
 
-const echoPattern = /^echo\s+(?<text>.*)$/i;
-const typePattern = /^type\s+(?<text>.*)$/i;
-const pattern = /^(?<command>\S+)(?:\s+(?<args>.*))?$/;
-
 (async () => {
     for (let i = 0; ; i++) {
-        const command = await prompt(i);
-        if (command === 'exit') {
-            break;
-        }
+        await prompt(i);
     }
-    rl.close();
 })();
 
 async function checkFileAccess(filePath) {
@@ -49,21 +41,21 @@ async function prompt() {
             if (!answer) {
                 resolve();
             }
-            const { command, args = '' } = answer.match(pattern).groups;
+            const command = answer.split(/\s+/);
             const paths = process.env.PATH || [];
             switch (true) {
-                case command === 'exit': {
-                    resolve('exit');
+                case command[0] === 'exit': {
+                    rl.close();
                     break;
                 }
-                case command === 'echo': {
-                    console.log(args || '');
+                case command[0] === 'echo': {
+                    console.log(command.slice(1).join(' '));
                     resolve();
                     break;
                 }
-                case command === 'type': {
+                case command[0] === 'type': {
                     const builtins = ['echo', 'exit', 'type'];
-                    for (const arg of args.split(' ')) {
+                    for (const arg of command.slice(1)) {
                         const isBuiltin = builtins.some((builtin) => builtin === arg);
                         if (isBuiltin) {
                             console.log(`${arg} is a shell builtin`);
@@ -77,12 +69,12 @@ async function prompt() {
                 }
                 default: {
                     if (
-                        spawnSync(`${command}`, (args && args.split(/\s+/)) || [], {
+                        spawnSync(`${command[0]}`, command.slice(1), {
                             encoding: 'utf-8',
                             stdio: 'inherit',
                         }).status !== 0
                     )
-                        console.log(`${command}: command not found`);
+                        console.log(`${command[0]}: command not found`);
                     resolve();
                 }
             }
