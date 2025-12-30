@@ -41,15 +41,15 @@ async function prompt() {
             if (!answer) {
                 resolve();
             }
-            const tokenRegex = /'([^']*)'|([^\s']+)|(\s+)/g;
+            const tokenRegex = /'([^']*)'|"([^"]*)"|([^\s'"]+)|(\s+)/g;
 
             const matches = answer.matchAll(tokenRegex);
             const command = [];
 
             let string = '';
             for (const match of matches) {
-                if (match[3] === undefined) {
-                    string += match[1] ?? match[2];
+                if (match[4] === undefined) {
+                    string += match[1] ?? match[2] ?? match[3];
                 } else {
                     if (string !== '') {
                         command.push(string);
