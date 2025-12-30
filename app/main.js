@@ -41,7 +41,18 @@ async function prompt() {
             if (!answer) {
                 resolve();
             }
-            const command = answer.split(/\s+/);
+            const tokenRegex = /'([^']*)'|([^\s']+)/g;
+
+            const matches = answer.matchAll(tokenRegex);
+            const command = [];
+
+            for (const match of matches) {
+                // `match[1]` will contain the content if it was a quoted string.
+                // `match[2]` will contain the content if it was an unquoted word.
+                // One of them will be `undefined`.
+                command.push(match[1] !== undefined ? match[1] : match[2]);
+            }
+            const args = command.slice(1);
             const paths = process.env.PATH || [];
             switch (command[0]) {
                 case 'exit': {
@@ -49,13 +60,13 @@ async function prompt() {
                     break;
                 }
                 case 'echo': {
-                    console.log(command.slice(1).join(' '));
+                    console.log(args.join(' '));
                     resolve();
                     break;
                 }
                 case 'type': {
                     const builtins = ['echo', 'exit', 'type', 'pwd', 'cd'];
-                    for (const arg of command.slice(1)) {
+                    for (const arg of args) {
                         const isBuiltin = builtins.some((builtin) => builtin === arg);
                         if (isBuiltin) {
                             console.log(`${arg} is a shell builtin`);
