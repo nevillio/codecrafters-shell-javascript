@@ -41,17 +41,27 @@ async function prompt() {
             if (!answer) {
                 resolve();
             }
-            const tokenRegex = /'([^']*)'|([^\s']+)/g;
+            const tokenRegex = /'([^']*)'|([^\s']+)|(\s+)/g;
 
             const matches = answer.matchAll(tokenRegex);
             const command = [];
 
+            let string = '';
             for (const match of matches) {
-                // `match[1]` will contain the content if it was a quoted string.
-                // `match[2]` will contain the content if it was an unquoted word.
-                // One of them will be `undefined`.
-                command.push(match[1] !== undefined ? match[1] : match[2]);
+                if (match[3] === undefined) {
+                    string += match[1] ?? match[2];
+                } else {
+                    if (string !== '') {
+                        command.push(string);
+                        string = '';
+                    }
+                }
             }
+
+            // if (!string.match(/s+/)) {
+            command.push(string);
+            // }
+
             const args = command.slice(1);
             const paths = process.env.PATH || [];
             switch (command[0]) {
