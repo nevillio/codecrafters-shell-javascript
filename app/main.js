@@ -2,7 +2,7 @@ const readline = require('readline');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { spawn, spawnSync } = require('child_process');
+const { spawnSync } = require('child_process');
 
 const rl = readline.createInterface({
     input: process.stdin,
@@ -25,6 +25,31 @@ async function checkFileAccess(filePath) {
     }
 }
 
+/**
+ * Print to console or redirect to file
+ * @param {array} outputs output of the command
+ * @param {Object} param1 redirection arguments
+ * @param {string} param1.operation type of redirection: write | append
+ * @param {string} param1.filePath
+ */
+async function handleOutput(outputs, { operation, filePath }) {
+    let finalSentence = outputs.join('\n');
+
+    if (finalSentence.endsWith('\n')) {
+        finalSentence = finalSentence.slice(0, -1);
+    }
+
+    if (operation && filePath) {
+        const expandedFilePath = expandTilde(filePath);
+        try {
+            await fs.promises.writeFile(expandedFilePath, outputs, { encoding: 'utf8' });
+        } catch {}
+        return;
+    }
+
+    console.log(finalSentence);
+}
+
 async function isValidDirectory(path) {
     try {
         const stats = await fs.promises.stat(path);
@@ -41,37 +66,20 @@ async function prompt() {
             if (!answer) {
                 resolve();
             }
-            const tokenRegex = /'([^']*)'|"((?:[^"\\]|\\.)*?)"|\\(.?)|([^\s'"\\]+)|(\s+)/g;
 
-            const matches = answer.matchAll(tokenRegex);
             const command = [];
-
-            let string = '';
-            for (const match of matches) {
-                if (match[5] === undefined) {
-                    string += match[1] ?? match[2]?.replace(/\\("|\\)/g, '$1') ?? match[3] ?? match[4];
-                } else {
-                    if (string !== '') {
-                        command.push(string);
-                        string = '';
-                    }
-                }
-            }
-
-            // if (!string.match(/s+/)) {
-            command.push(string);
-            // }
+            const redirectionArgs = splitTokens(answer, command);
 
             const args = command.slice(1);
             const paths = process.env.PATH || [];
+            let outputs = [];
+
             switch (command[0]) {
                 case 'exit': {
-                    rl.close();
-                    break;
+                    return rl.close();
                 }
                 case 'echo': {
-                    console.log(args.join(' '));
-                    resolve();
+                    outputs.push(args.join(' '));
                     break;
                 }
                 case 'type': {
@@ -79,74 +87,85 @@ async function prompt() {
                     for (const arg of args) {
                         const isBuiltin = builtins.some((builtin) => builtin === arg);
                         if (isBuiltin) {
-                            console.log(`${arg} is a shell builtin`);
+                            outputs.push(`${arg} is a shell builtin`);
                         } else {
                             const access = await getIsFileAccessible(paths, arg);
-                            console.log(access ? `${arg} is ${access}` : `${arg}: not found`);
+                            outputs.push(access ? `${arg} is ${access}` : `${arg}: not found`);
                         }
                     }
-                    resolve();
                     break;
                 }
                 case 'pwd': {
-                    console.log(process.cwd());
-                    resolve();
+                    outputs.push(process.cwd());
                     break;
                 }
                 case 'cd': {
                     const cd = command[0];
                     const newDirectory = expandTilde(command[1]);
                     if (command.length > 2) {
-                        console.log(`${cd}: too many arguments`);
+                        outputs.push(`${cd}: too many arguments`);
                     } else if (newDirectory && !(await isValidDirectory(newDirectory))) {
-                        console.log(`${cd}: ${newDirectory}: No such file or directory`);
+                        outputs.push(`${cd}: ${newDirectory}: No such file or directory`);
                     } else process.chdir(newDirectory || os.homedir());
-                    resolve();
                     break;
                 }
                 default: {
-                    if (
-                        spawnSync(`${command[0]}`, command.slice(1), {
+                    const executable = command[0];
+                    const isExecutable = await getIsFileAccessible(process.env.PATH, executable);
+
+                    if (isExecutable) {
+                        const result = spawnSync(`${executable}`, command.slice(1), {
                             encoding: 'utf-8',
-                            stdio: 'inherit',
-                        }).status !== 0
-                    )
-                        console.log(`${command[0]}: command not found`);
-                    resolve();
+                            stdio: ['inherit', 'pipe', 'inherit'],
+                        });
+                        if (result.stdout) {
+                            outputs.push(result.stdout);
+                        }
+                    } else {
+                        outputs.push(`${command[0]}: command not found`);
+                    }
                 }
             }
+            if (outputs.length > 0) {
+                handleOutput(outputs, redirectionArgs);
+            }
+            resolve();
         });
     });
 }
 
-async function spawnProcess(command, args) {
-    const argsArray = (args.length && args.split(/\s+/)) || [];
-    return new Promise((resolve, reject) => {
-        const child = spawn(command, argsArray);
-        child.stdin.end();
-        let stdout = '';
-        let stderr = '';
+function splitTokens(answer, command) {
+    let string = '';
+    let redirectionArgs = {};
+    const tokenRegex =
+        // TODO: refactor to replace with a switch case.
+        // singlequotes, double quotes, escape, non-quotes-and-space character, space, operator
+        /'([^']*)'|"((?:[^"\\]|\\.)*?)"|\\(.?)|((?!\d?>)[^\s'"\\>]+)|(\s+)|((?<fd>\d?)(?<operation>\>+)\s*(?<filePath>.*))/g;
+    const matches = answer.matchAll(tokenRegex);
 
-        child.stdout.on('data', (data) => {
-            stdout += data.toString();
-        });
-
-        child.stderr.on('data', (data) => {
-            stderr += data.toString();
-        });
-
-        child.on('close', (code) => {
-            if (code === 0) {
-                resolve(stdout); // Resolve with stdout only
-            } else {
-                reject(new Error(`Process exited with code ${code}: ${stderr.trim()}`));
+    for (const match of matches) {
+        if (match.groups && match.groups.operation && match.groups.filePath) {
+            // If the redirection group was matched, extract the parts
+            redirectionArgs = {
+                fd: match.groups.fd === '' ? '1' : match.groups.fd, // Default fd to '1' if empty
+                operation: match.groups.operation,
+                filePath: match.groups.filePath,
+            };
+            // Redirection tokens are not part of the command itself, so do not push to 'command'
+        } else if (match[5] === undefined) {
+            string += match[1] ?? match[2]?.replace(/\\("|\\)/g, '$1') ?? match[3] ?? match[4];
+        } else {
+            if (string !== '') {
+                command.push(string);
+                string = '';
             }
-        });
+        }
+    }
 
-        child.on('error', (err) => {
-            reject(new Error(`Failed to start child process: ${err.message}`));
-        });
-    });
+    if (string) {
+        command.push(string);
+    }
+    return redirectionArgs;
 }
 
 /**
@@ -157,8 +176,9 @@ async function spawnProcess(command, args) {
  */
 async function getIsFileAccessible(paths, text) {
     for (const dir of paths.split(path.delimiter)) {
-        if (await isValidDirectory(dir)) {
-            const filePath = expandTilde(dir) + `/${text}`;
+        const expandedDirectoryName = expandTilde(dir);
+        if (await isValidDirectory(expandedDirectoryName)) {
+            const filePath = expandedDirectoryName + `/${text}`;
             const access = await checkFileAccess(filePath);
             if (access) {
                 return filePath;
