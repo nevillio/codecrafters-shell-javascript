@@ -103,9 +103,9 @@ async function prompt() {
                     const cd = command[0];
                     const newDirectory = expandTilde(command[1]);
                     if (command.length > 2) {
-                        outputs.push(`${cd}: too many arguments`);
+                        console.error(`${cd}: too many arguments`);
                     } else if (newDirectory && !(await isValidDirectory(newDirectory))) {
-                        outputs.push(`${cd}: ${newDirectory}: No such file or directory`);
+                        console.error(`${cd}: ${newDirectory}: No such file or directory`);
                     } else process.chdir(newDirectory || os.homedir());
                     break;
                 }
@@ -113,16 +113,18 @@ async function prompt() {
                     const executable = command[0];
                     const isExecutable = await getIsFileAccessible(process.env.PATH, executable);
 
-                    if (isExecutable) {
-                        const result = spawnSync(`${executable}`, command.slice(1), {
-                            encoding: 'utf-8',
-                            stdio: ['inherit', 'pipe', 'inherit'],
-                        });
-                        if (result.stdout) {
-                            outputs.push(result.stdout);
-                        }
-                    } else {
-                        outputs.push(`${command[0]}: command not found`);
+                    if (!isExecutable) {
+                        console.error(`${command[0]}: command not found`);
+                        resolve(127);
+                        return;
+                    }
+
+                    const result = spawnSync(`${executable}`, command.slice(1), {
+                        encoding: 'utf-8',
+                        stdio: ['inherit', 'pipe', 'inherit'],
+                    });
+                    if (result.stdout) {
+                        outputs.push(result.stdout);
                     }
                 }
             }
