@@ -27,27 +27,28 @@ async function checkFileAccess(filePath) {
 
 /**
  * Print to console or redirect to file
- * @param {array} outputs output of the command
+ * @param {array} output output of the command
  * @param {Object} param1 redirection arguments
  * @param {string} param1.operation type of redirection: write | append
  * @param {string} param1.filePath
  */
-async function handleOutput(outputs, { operation, filePath }) {
+async function redirect(output, { operation, filePath }) {
+    if (operation && filePath) {
+        const expandedFilePath = expandTilde(filePath);
+        try {
+            await fs.promises.writeFile(expandedFilePath, output, { encoding: 'utf8' });
+        } catch {}
+        return;
+    }
+}
+
+function joinSentence(outputs) {
     let finalSentence = outputs.join('\n');
 
     if (finalSentence.endsWith('\n')) {
         finalSentence = finalSentence.slice(0, -1);
     }
-
-    if (operation && filePath) {
-        const expandedFilePath = expandTilde(filePath);
-        try {
-            await fs.promises.writeFile(expandedFilePath, outputs, { encoding: 'utf8' });
-        } catch {}
-        return;
-    }
-
-    console.log(finalSentence);
+    return finalSentence;
 }
 
 async function isValidDirectory(path) {
@@ -73,6 +74,7 @@ async function prompt() {
             const args = command.slice(1);
             const paths = process.env.PATH || [];
             let outputs = [];
+            let errors = [];
 
             switch (command[0]) {
                 case 'exit': {
@@ -121,19 +123,39 @@ async function prompt() {
 
                     const result = spawnSync(`${executable}`, command.slice(1), {
                         encoding: 'utf-8',
-                        stdio: ['inherit', 'pipe', 'inherit'],
+                        stdio: ['inherit', 'pipe', 'pipe'],
                     });
                     if (result.stdout) {
                         outputs.push(result.stdout);
                     }
+                    if (result.stderr) {
+                        errors.push(result.stderr);
+                    }
                 }
             }
-            if (outputs.length > 0) {
-                handleOutput(outputs, redirectionArgs);
-            }
+            print(outputs, errors, redirectionArgs);
             resolve();
         });
     });
+}
+
+function print(outputs, errors, redirectionArgs) {
+    const output = joinSentence(outputs);
+    const error = joinSentence(errors);
+    if (redirectionArgs.fd === '1') {
+        redirect(output, redirectionArgs);
+    } else {
+        if (output) {
+            console.log(output);
+        }
+    }
+    if (redirectionArgs.fd === '2') {
+        redirect(error, redirectionArgs);
+    } else {
+        if (error) {
+            console.error(error);
+        }
+    }
 }
 
 function splitTokens(answer, command) {
