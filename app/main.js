@@ -15,51 +15,6 @@ const rl = readline.createInterface({
     }
 })();
 
-async function checkFileAccess(filePath) {
-    try {
-        await fs.promises.access(filePath, fs.promises.constants.F_OK);
-        await fs.promises.access(filePath, fs.promises.constants.X_OK);
-        return true;
-    } catch (error) {
-        return false;
-    }
-}
-
-/**
- * Print to console or redirect to file
- * @param {array} output output of the command
- * @param {Object} param1 redirection arguments
- * @param {string} param1.operation type of redirection: write | append
- * @param {string} param1.filePath
- */
-async function redirect(output, { operation, filePath }) {
-    if (operation && filePath) {
-        const expandedFilePath = expandTilde(filePath);
-        try {
-            await fs.promises.writeFile(expandedFilePath, output, { encoding: 'utf8' });
-        } catch {}
-        return;
-    }
-}
-
-function joinSentence(outputs) {
-    let finalSentence = outputs.join('\n');
-
-    if (finalSentence.endsWith('\n')) {
-        finalSentence = finalSentence.slice(0, -1);
-    }
-    return finalSentence;
-}
-
-async function isValidDirectory(path) {
-    try {
-        const stats = await fs.promises.stat(path);
-        return stats.isDirectory();
-    } catch (error) {
-        return false;
-    }
-}
-
 async function prompt() {
     return new Promise((resolve, reject) => {
         rl.question('$ ', async (answer) => {
@@ -137,6 +92,67 @@ async function prompt() {
             resolve();
         });
     });
+}
+
+async function checkFileAccess(filePath) {
+    try {
+        await fs.promises.access(filePath, fs.promises.constants.F_OK);
+        await fs.promises.access(filePath, fs.promises.constants.X_OK);
+        return true;
+    } catch (error) {
+        return false;
+    }
+}
+
+/**
+ * Print to console or redirect to file
+ * @param {array} output output of the command
+ * @param {Object} param1 redirection arguments
+ * @param {string} param1.operation type of redirection: write | append
+ * @param {string} param1.filePath
+ */
+async function redirect(output, { operation, filePath }) {
+    if (operation && filePath) {
+        const expandedFilePath = expandTilde(filePath);
+        if (operation === '>') {
+            try {
+                await fs.promises.writeFile(expandedFilePath, output, { encoding: 'utf8' });
+            } catch {}
+        } else {
+            try {
+                const fileSize = (await fs.promises.stat(filePath)).size;
+                if (fileSize > 0) {
+                    output = '\n' + output;
+                }
+                await fs.promises.appendFile(expandedFilePath, output, { encoding: 'utf8' });
+            } catch (err) {
+                if (err.code === 'ENOENT') {
+                    await fs.promises.writeFile(expandedFilePath, output);
+                } else {
+                    throw err;
+                }
+            }
+        }
+        return;
+    }
+}
+
+function joinSentence(outputs) {
+    let finalSentence = outputs.join('\n');
+
+    if (finalSentence.endsWith('\n')) {
+        finalSentence = finalSentence.slice(0, -1);
+    }
+    return finalSentence;
+}
+
+async function isValidDirectory(path) {
+    try {
+        const stats = await fs.promises.stat(path);
+        return stats.isDirectory();
+    } catch (error) {
+        return false;
+    }
 }
 
 function print(outputs, errors, redirectionArgs) {
