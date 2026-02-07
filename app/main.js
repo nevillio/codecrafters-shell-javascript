@@ -112,6 +112,9 @@ async function checkFileAccess(filePath) {
  * @param {string} param1.filePath
  */
 async function redirect(output, { operation, filePath }) {
+    if (output && !output.endsWith('\n')) {
+        output += '\n';
+    }
     if (operation && filePath) {
         const expandedFilePath = expandTilde(filePath);
         if (operation === '>') {
@@ -120,30 +123,15 @@ async function redirect(output, { operation, filePath }) {
             } catch {}
         } else {
             try {
-                const fileSize = (await fs.promises.stat(filePath)).size;
-                if (fileSize > 0) {
-                    output = '\n' + output;
-                }
                 await fs.promises.appendFile(expandedFilePath, output, { encoding: 'utf8' });
-            } catch (err) {
-                if (err.code === 'ENOENT') {
-                    await fs.promises.writeFile(expandedFilePath, output);
-                } else {
-                    throw err;
-                }
-            }
+            } catch (err) {}
         }
         return;
     }
 }
 
-function joinSentence(outputs) {
-    let finalSentence = outputs.join('\n');
-
-    if (finalSentence.endsWith('\n')) {
-        finalSentence = finalSentence.slice(0, -1);
-    }
-    return finalSentence;
+function printToConsole(output) {
+    console.log(output.replace(/\n$/, ''));
 }
 
 async function isValidDirectory(path) {
@@ -156,20 +144,20 @@ async function isValidDirectory(path) {
 }
 
 function print(outputs, errors, redirectionArgs) {
-    const output = joinSentence(outputs);
-    const error = joinSentence(errors);
+    const output = outputs.join('\n');
+    const error = errors.join('\n');
     if (redirectionArgs.fd === '1') {
         redirect(output, redirectionArgs);
     } else {
         if (output) {
-            console.log(output);
+            printToConsole(output);
         }
     }
     if (redirectionArgs.fd === '2') {
         redirect(error, redirectionArgs);
     } else {
         if (error) {
-            console.error(error);
+            printToConsole(error);
         }
     }
 }
